@@ -1,8 +1,8 @@
 name: 기능 개발
 description: 기능 추가, 개선, 계획 등
 title: "[Feature] 이슈 한줄 요약을 제목으로"
-labels: ''
-assignees: ''
+labels: []
+assignees: []
 type: Feature
 body:
   - type: input

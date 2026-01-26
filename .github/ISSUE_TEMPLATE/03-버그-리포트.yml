@@ -40,19 +40,19 @@ body:
         3)
     validations:
       required: false
-    
- - type: dropdown
-   id: frequency
-   attributes:
-     label: 빈도
-     description: 얼마나 자주 발생하나요?
-     options:
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: 빈도
+      description: 얼마나 자주 발생하나요?
+      options:
         - 항상
         - 가끔
         - 특정 조건에서만
         - 재현 불가
-   validations:
-     required: true
+    validations:
+      required: true
 
   - type: dropdown
     id: user_impact

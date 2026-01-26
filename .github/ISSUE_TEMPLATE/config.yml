@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📝 템플릿 사용방법
+    url: https://docs.google.com/document/d/18pA3u8Mog-qbhOKdeeLN2OoSpXw_bfgNqMqn8WW-dLk/edit?usp=drive_link
+    about: 이슈 템플릿 작성/사용 가이드는 여기서 확인하세요.

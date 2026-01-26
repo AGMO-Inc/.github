@@ -1,8 +1,8 @@
 name: 버그 리포트
 description: 버그 및 에러, 정상적이지 않은 동작
 title: "[Bug] 문제가 요약된 제목"
-labels: ''
-assignees: ''
+labels: []
+assignees: []
 type: Bug
 body:
   - type: input

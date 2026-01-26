@@ -39,5 +39,5 @@ body:
       label: 3. 참고 (선택)
       placeholder: |
         - 링크/스크린샷/로그 등
-    validations
-::contentReference[oaicite:0]{index=0}
+    validations:
+      required: false

@@ -2,24 +2,109 @@
 
 # 1. 공용 템플릿 만드는 방법
 
-1) 이 리포지토리 이름은 반드시 `.github` 이어야 합니다.  
-2) 기본 브랜치(default branch)에 아래 경로로 템플릿 파일을 추가합니다.
+참고 : https://docs.github.com/ko/communities/using-templates-to-encourage-useful-issues-and-pull-requests/about-issue-and-pull-request-templates
+
+## 1.1 md 파일로 만들기
+- .md 파일로 만들면 해당 파일이 그대로 issue 템플릿으로 노출됩니다.
+  
+**예시**
+- .github/ISSUE_TEMPLATE/example.md 파일 생성
+```
+---
+name: 템플릿 이름
+about: 템플릿 설명 (description)
+title: "템플릿의 기본 제목"
+labels: ''
+assignees: ''
+type: Document
+---
+
+# 예시 1
+
+# 예시 2
+- [ ] 개발할 기능 1
+- [ ] 개발할 기능 2
 
 ```
-.github/ISSUE_TEMPLATE/
-*.md 또는 *.yml
+
+- Issue 에서 템플릿이 노출되는지 확인
+
+<img width="1310" height="937" alt="image" src="https://github.com/user-attachments/assets/e45947fb-7291-49c0-90cf-f02563de2ff8" />
+
+## 1.2 yml 파일로 만들기
+- .yml 파일로 만들면 해당 파일이 github 에 의해 해석되어 그대로 issue 포맷이 생성됩니다.
+  
+**예시**
+- .github/ISSUE_TEMPLATE/example.yml 파일 생성
+```
+name: Bug Report
+description: File a bug report.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+projects: ["octo-org/1", "octo-org/44"]
+assignees:
+  - octocat
+type: bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: input
+    id: contact
+    attributes:
+      label: Contact Details
+      description: How can we get in touch with you if we need more info?
+      placeholder: ex. email@example.com
+    validations:
+      required: false
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+      value: "A bug happened!"
+    validations:
+      required: true
+  - type: dropdown
+    id: version
+    attributes:
+      label: Version
+      description: What version of our software are you running?
+      options:
+        - 1.0.2 (Default)
+        - 1.0.3 (Edge)
+      default: 0
+    validations:
+      required: true
+  - type: dropdown
+    id: browsers
+    attributes:
+      label: What browsers are you seeing the problem on?
+      multiple: true
+      options:
+        - Firefox
+        - Chrome
+        - Safari
+        - Microsoft Edge
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      render: shell
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://example.com).
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true
 
 ```
 
-3) 커밋 후, 조직 내 각 레포지토리에서 **New issue**를 눌러 템플릿이 노출되는지 확인합니다.
+- Issue 에서 템플릿이 노출되는지 확인
 
-### 동작 규칙(중요)
-- 조직 공용 템플릿은 **각 레포에 별도 템플릿이 없을 때만** 적용됩니다.  
-  (레포에 `.github/ISSUE_TEMPLATE/` 가 존재하면 해당 레포 템플릿이 우선 적용됩니다.)
-- 템플릿에서 `labels:` 를 사용한다면, 각 레포에도 동일한 라벨이 존재해야 자동 부여됩니다.
-
-## Directory
-
-- `.github/ISSUE_TEMPLATE/` : 이슈 템플릿
-- `.github/PULL_REQUEST_TEMPLATE.md` : PR 템플릿(선택)
-- `.github/ISSUE_TEMPLATE/config.yml` : 이슈 작성 UI 설정(선택)
+<img width="1440" height="1209" alt="image" src="https://github.com/user-attachments/assets/2f787aad-23af-4cd7-bffa-50c3f151aa42" />

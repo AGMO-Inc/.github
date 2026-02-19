@@ -156,9 +156,11 @@ jobs:
             -H "Content-Type: application/json" \
             -d @payload.json)"
 
-          python - <<'PY'
-          import json, sys
-          r = json.loads(sys.stdin.read())
+          printf '%s' "$resp" > resp.json
+
+          python - <<'PY' > review.json
+          import json
+          r = json.load(open("resp.json", "r", encoding="utf-8", errors="replace"))
           out = r.get("output_text")
           if not out:
             out_items = []
@@ -168,7 +170,7 @@ jobs:
                   out_items.append(c.get("text", ""))
             out = "\n".join(out_items).strip()
           print(out)
-          PY <<<"$resp" > review.json
+          PY
 
           python - <<'PY'
           import json

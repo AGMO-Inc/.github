@@ -7,7 +7,7 @@ on:
         description: "Model name for review (e.g. your Codex model id)"
         required: false
         type: string
-        default: "gpt-4.1-mini"
+        default: "gpt-5.3-codex"
       max_diff_bytes:
         description: "Limit diff size to avoid huge payloads"
         required: false
@@ -26,6 +26,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check out PR merge commit
+        uses: actions/checkout@v5
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+
       - name: Fetch PR diff
         id: diff
         env:
@@ -54,171 +59,243 @@ jobs:
 
           echo "diff_path=pr.diff" >> "$GITHUB_OUTPUT"
 
-      - name: Build request payload
-        id: payload
+      - name: Build Codex prompt and schema
+        id: prompt
         env:
-          MODEL: ${{ inputs.model }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DIFF_TRUNCATED: ${{ steps.diff.outputs.truncated }}
         run: |
           set -euo pipefail
 
-          cat > payload.json <<'JSON'
+          cat > codex_prompt.md <<'EOF'
+          You are a senior code reviewer for the project
+
+          ## Backend Review Criteria (5 × 20 = 100)
+
+          ### 1. Security (0-20)
+          - No hardcoded secrets, API keys, or credentials
+          - No SQL injection or command injection vulnerabilities
+          - Proper input validation at API boundaries (@Valid, Bean Validation)
+          - No sensitive data exposure in logs or error messages
+          - Authentication/authorization configured correctly (Spring Security, JWT)
+
+          ### 2. Code Quality (0-20)
+          - Clean, readable Kotlin code following project conventions
+          - Proper error handling and exception management (sealed class, Result)
+          - Functions and classes have single responsibility
+          - Kotlin idioms used appropriately (data class, extension functions, null safety)
+          - No unnecessary complexity, dead code, or code duplication
+
+          ### 3. Architecture (0-20)
+          - Hexagonal Architecture compliance (port/adapter separation)
+          - Dependencies point inward (infrastructure → application → domain)
+          - Use cases are clearly defined and isolated in application layer
+          - DTOs used at boundaries — entities not exposed to controllers
+          - Changes are consistent with existing patterns and layer conventions
+
+          ### 4. Correctness (0-20)
+          - Logic is correct and handles edge cases
+          - No obvious bugs or runtime errors
+          - API contracts (request/response DTOs) are properly maintained
+          - Database queries are correct (JPA mappings, lazy loading, N+1)
+          - Environment-specific configurations are correct
+
+          ### 5. Performance & Data (0-20)
+          - Database queries are efficient (indexes, pagination, batch operations)
+          - No unnecessary blocking calls in request handling
+          - Proper caching strategy where applicable
+          - Transaction boundaries are appropriate (@Transactional scope)
+          - Resource cleanup (connections, streams) handled correctly
+
+          ---
+
+          ## OUTPUT FORMAT (MANDATORY)
+
+          You MUST follow this EXACT format. Category names change per role (see below).
+
+          ### Backend Output
+
+          ```
+          [REVIEW_START]
+
+          [SECURITY]
+          SCORE: {number}/20
+          ISSUES:
+          - {issue description or "None"}
+          RECOMMENDATION: {one-line recommendation or "N/A"}
+
+          [CODE_QUALITY]
+          SCORE: {number}/20
+          ISSUES:
+          - {issue description or "None"}
+          RECOMMENDATION: {one-line recommendation or "N/A"}
+
+          [ARCHITECTURE]
+          SCORE: {number}/20
+          ISSUES:
+          - {issue description or "None"}
+          RECOMMENDATION: {one-line recommendation or "N/A"}
+
+          [CORRECTNESS]
+          SCORE: {number}/20
+          ISSUES:
+          - {issue description or "None"}
+          RECOMMENDATION: {one-line recommendation or "N/A"}
+
+          [PERFORMANCE_DATA]
+          SCORE: {number}/20
+          ISSUES:
+          - {issue description or "None"}
+          RECOMMENDATION: {one-line recommendation or "N/A"}
+
+          [SUMMARY]
+          TOTAL: {sum of 5 scores}/100
+          VERDICT: {PASS if total >= 80, FAIL if total < 80}
+          COMMENT: {1-2 sentence overall assessment}
+
+          [REVIEW_END]
+          ```
+
+          ### Rules:
+          1. Each SCORE MUST be a single integer from 0-20
+          2. TOTAL MUST equal the exact sum of the 5 scores
+          3. VERDICT MUST be exactly "PASS" or "FAIL" (PASS if TOTAL >= 80, FAIL otherwise)
+          4. Every section MUST have at least one ISSUES bullet (use "None" if no issues)
+          5. Do NOT add markdown headers (###), bold (**), or any formatting outside this template
+          6. The `[REVIEW_START]` and `[REVIEW_END]` tags MUST be present
+          7. ISSUES should be concrete and actionable with file paths and line numbers where possible
+          8. Use the correct category names for the detected role
+          EOF
+
           {
-            "model": "__MODEL__",
-            "input": [
-              {
-                "role": "system",
-                "content": [
-                  {
-                    "type": "text",
-                    "text": "You are a senior backend engineer reviewing a GitHub pull request diff. Score the PR using 5 categories, 0-20 each, total 0-100. Backend rubric: (1) Architecture & Responsibility Split, (2) Business Logic Correctness, (3) Security & Input Validation, (4) Performance & Scalability, (5) Tests & Operational Stability. Output MUST be valid JSON per the provided schema. Keep feedback actionable and concise."
-                  }
-                ]
-              },
-              {
-                "role": "user",
-                "content": [
-                  {
-                    "type": "text",
-                    "text": "PR title: __TITLE__\nPR author: __AUTHOR__\n\nDIFF:\n__DIFF__"
-                  }
-                ]
-              }
-            ],
-            "text": {
-              "format": {
-                "type": "json_schema",
-                "name": "pr_review",
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "total_score": { "type": "integer", "minimum": 0, "maximum": 100 },
-                    "scores": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "architecture_responsibility": { "type": "integer", "minimum": 0, "maximum": 20 },
-                        "business_logic_correctness": { "type": "integer", "minimum": 0, "maximum": 20 },
-                        "security_validation": { "type": "integer", "minimum": 0, "maximum": 20 },
-                        "performance_scalability": { "type": "integer", "minimum": 0, "maximum": 20 },
-                        "tests_operability": { "type": "integer", "minimum": 0, "maximum": 20 }
-                      },
-                      "required": [
-                        "architecture_responsibility",
-                        "business_logic_correctness",
-                        "security_validation",
-                        "performance_scalability",
-                        "tests_operability"
-                      ]
-                    },
-                    "summary": { "type": "string" },
-                    "strengths": { "type": "array", "items": { "type": "string" } },
-                    "major_issues": { "type": "array", "items": { "type": "string" } },
-                    "recommendations": { "type": "array", "items": { "type": "string" } }
-                  },
-                  "required": ["total_score", "scores", "summary", "strengths", "major_issues", "recommendations"]
-                }
-              }
-            }
-          }
-          JSON
+            echo ""
+            echo "---"
+            echo "PR number: ${PR_NUMBER}"
+            echo "PR title: ${PR_TITLE}"
+            echo "PR author: ${PR_AUTHOR}"
+            echo "Diff truncated: ${DIFF_TRUNCATED}"
+            echo ""
+            echo "DIFF:"
+          } >> codex_prompt.md
+          cat pr.diff >> codex_prompt.md
 
-          python - <<'PY'
-          import json, os
-          p = json.load(open("payload.json", "r", encoding="utf-8"))
-          p["model"] = os.environ["MODEL"]
-          text = p["input"][1]["content"][0]["text"]
-          text = text.replace("__TITLE__", os.environ.get("PR_TITLE", ""))
-          text = text.replace("__AUTHOR__", os.environ.get("PR_AUTHOR", ""))
-          p["input"][1]["content"][0]["text"] = text
-          json.dump(p, open("payload.json", "w", encoding="utf-8"), ensure_ascii=False)
-          PY
+      - name: Run Codex (openai/codex-action)
+        id: codex
+        uses: openai/codex-action@v1
+        continue-on-error: true
+        with:
+          openai-api-key: ${{ secrets.CODEX_API_TOKEN }}
+          prompt-file: codex_prompt.md
+          model: ${{ inputs.model }}
+          sandbox: read-only
+          safety-strategy: drop-sudo
+          allow-bots: true
 
-      - name: Call API and format comment
+      - name: Prepare review output
         id: call
         env:
-          OPENAI_API_KEY: ${{ secrets.CODEX_API_TOKEN }}
+          CODEX_FINAL_MESSAGE: ${{ steps.codex.outputs.final-message }}
+          CODEX_OUTCOME: ${{ steps.codex.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
 
           python - <<'PY'
-          import json
-          p = json.load(open("payload.json", "r", encoding="utf-8"))
-          diff = open("pr.diff", "r", encoding="utf-8", errors="replace").read()
-          p["input"][1]["content"][0]["text"] = p["input"][1]["content"][0]["text"].replace("__DIFF__", diff)
-          json.dump(p, open("payload.json", "w", encoding="utf-8"), ensure_ascii=False)
-          PY
+          import os, re
 
-          resp="$(curl -sS https://api.openai.com/v1/responses \
-            -H "Authorization: Bearer $OPENAI_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d @payload.json)"
+          raw = os.environ.get("CODEX_FINAL_MESSAGE") or ""
+          outcome = os.environ.get("CODEX_OUTCOME") or ""
+          run_url = os.environ.get("RUN_URL") or ""
 
-          printf '%s' "$resp" > resp.json
+          def fallback(reason: str) -> str:
+            reason = reason.strip().replace("\n", " ")
+            return "\n".join([
+              "[REVIEW_START]",
+              "",
+              "[SECURITY]",
+              "SCORE: 0/20",
+              "ISSUES:",
+              f"- {reason}",
+              "RECOMMENDATION: N/A",
+              "",
+              "[CODE_QUALITY]",
+              "SCORE: 0/20",
+              "ISSUES:",
+              "- None",
+              "RECOMMENDATION: N/A",
+              "",
+              "[ARCHITECTURE]",
+              "SCORE: 0/20",
+              "ISSUES:",
+              "- None",
+              "RECOMMENDATION: N/A",
+              "",
+              "[CORRECTNESS]",
+              "SCORE: 0/20",
+              "ISSUES:",
+              "- None",
+              "RECOMMENDATION: N/A",
+              "",
+              "[PERFORMANCE_DATA]",
+              "SCORE: 0/20",
+              "ISSUES:",
+              "- None",
+              "RECOMMENDATION: N/A",
+              "",
+              "[SUMMARY]",
+              "TOTAL: 0/100",
+              "VERDICT: FAIL",
+              "COMMENT: Codex review failed to produce a valid report.",
+              "",
+              "[REVIEW_END]",
+              "",
+            ])
 
-          python - <<'PY' > review.json
-          import json
-          r = json.load(open("resp.json", "r", encoding="utf-8", errors="replace"))
-          out = r.get("output_text")
-          if not out:
-            out_items = []
-            for item in r.get("output", []):
-              for c in item.get("content", []):
-                if c.get("type") in ("output_text", "text"):
-                  out_items.append(c.get("text", ""))
-            out = "\n".join(out_items).strip()
-          print(out)
-          PY
+          def is_valid_template(s: str) -> tuple[bool, str]:
+            if "[REVIEW_START]" not in s or "[REVIEW_END]" not in s:
+              return False, "Missing [REVIEW_START]/[REVIEW_END] tags"
+            # Extract 5 category scores
+            score_re = re.compile(r"^SCORE:\s*(\d{1,2})/20\s*$", re.MULTILINE)
+            scores = [int(x) for x in score_re.findall(s)]
+            if len(scores) < 5:
+              return False, f"Expected 5 SCORE lines, found {len(scores)}"
+            scores = scores[:5]
+            if any(x < 0 or x > 20 for x in scores):
+              return False, "Score out of range"
 
-          python - <<'PY'
-          import json
-          raw = open("review.json", "r", encoding="utf-8", errors="replace").read().strip()
-          try:
-            data = json.loads(raw)
-          except Exception:
-            data = {
-              "total_score": 0,
-              "scores": {
-                "architecture_responsibility": 0,
-                "business_logic_correctness": 0,
-                "security_validation": 0,
-                "performance_scalability": 0,
-                "tests_operability": 0
-              },
-              "summary": raw,
-              "strengths": [],
-              "major_issues": [],
-              "recommendations": []
-            }
+            m_total = re.search(r"^TOTAL:\s*(\d{1,3})/100\s*$", s, re.MULTILINE)
+            if not m_total:
+              return False, "Missing TOTAL line"
+            total = int(m_total.group(1))
+            if total != sum(scores):
+              return False, f"TOTAL mismatch (got {total}, expected {sum(scores)})"
 
-          def section(title, items):
-            if not items:
-              return ""
-            s = f"### {title}\n"
-            for x in items:
-              s += f"- {x}\n"
-            return s + "\n"
+            m_verdict = re.search(r"^VERDICT:\s*(PASS|FAIL)\s*$", s, re.MULTILINE)
+            if not m_verdict:
+              return False, "Missing VERDICT line"
+            verdict = m_verdict.group(1)
+            expected = "PASS" if total >= 80 else "FAIL"
+            if verdict != expected:
+              return False, f"VERDICT mismatch (got {verdict}, expected {expected})"
 
-          scores = data.get("scores", {})
-          total = data.get("total_score")
-          if total is None:
-            total = sum(int(scores.get(k, 0) or 0) for k in scores.keys())
+            return True, ""
 
-          md = "## Codex Review\n\n"
-          md += f"**Score:** {total}/100\n\n"
-          md += "| Category | Score |\n|---|---:|\n"
-          md += f"| Architecture & Responsibility Split | {scores.get('architecture_responsibility', 0)}/20 |\n"
-          md += f"| Business Logic Correctness | {scores.get('business_logic_correctness', 0)}/20 |\n"
-          md += f"| Security & Input Validation | {scores.get('security_validation', 0)}/20 |\n"
-          md += f"| Performance & Scalability | {scores.get('performance_scalability', 0)}/20 |\n"
-          md += f"| Tests & Operational Stability | {scores.get('tests_operability', 0)}/20 |\n\n"
-          md += f"**Summary:** {data.get('summary','')}\n\n"
-          md += section("Strengths", data.get("strengths", []))
-          md += section("Major Issues", data.get("major_issues", []))
-          md += section("Recommendations", data.get("recommendations", []))
-          open("comment.md", "w", encoding="utf-8").write(md)
+          if not raw.strip():
+            out = fallback(f"Codex action produced no output (outcome={outcome}). Logs: {run_url}")
+            ok = False
+          else:
+            valid, why = is_valid_template(raw)
+            if not valid:
+              out = fallback(f"Codex output invalid: {why}. Logs: {run_url}")
+              ok = False
+            else:
+              out = raw.strip() + "\n"
+              ok = True
+
+          open("comment.md", "w", encoding="utf-8").write(out)
+          open(os.environ.get("GITHUB_OUTPUT"), "a", encoding="utf-8").write(f"api_ok={'true' if ok else 'false'}\n")
           PY
 
       - name: Post PR comment
@@ -242,3 +319,10 @@ jobs:
             -d @body.json \
             "https://api.github.com/repos/${owner}/${repo}/issues/${pr}/comments" \
             > /dev/null
+
+      - name: Fail job if Codex failed
+        if: ${{ steps.call.outputs.api_ok != 'true' }}
+        run: |
+          set -euo pipefail
+          echo "Codex review failed. See the PR comment and job logs for details." >&2
+          exit 1

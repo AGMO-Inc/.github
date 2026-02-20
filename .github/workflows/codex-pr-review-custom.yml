@@ -32,10 +32,18 @@ jobs:
         with:
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
 
-      - name: Fetch PR diff
-        id: diff
+      - name: Pre-fetch PR refs for local inspection
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin \
+            "${{ github.event.pull_request.base.ref }}" \
+            "+refs/pull/${{ github.event.pull_request.number }}/head"
+
+      - name: Fetch changed files summary
+        id: changed_files
         env:
           GH_TOKEN: ${{ github.token }}
+          MAX_DIFF_BYTES: ${{ inputs.max_diff_bytes }}
         run: |
           set -euo pipefail
           owner="${{ github.repository_owner }}"
@@ -44,21 +52,56 @@ jobs:
 
           curl -sS -L \
             -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github.v3.diff" \
-            "https://api.github.com/repos/${owner}/${repo}/pulls/${pr}" \
-            > pr.diff
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${owner}/${repo}/pulls/${pr}/files?per_page=100" \
+            > pr_files.json
 
-          max="${{ inputs.max_diff_bytes }}"
-          size=$(wc -c < pr.diff | tr -d ' ')
-          if [ "$size" -gt "$max" ]; then
-            head -c "$max" pr.diff > pr.diff.trunc
-            mv pr.diff.trunc pr.diff
-            echo "truncated=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "truncated=false" >> "$GITHUB_OUTPUT"
-          fi
+          python - <<'PY'
+          import json
+          import os
 
-          echo "diff_path=pr.diff" >> "$GITHUB_OUTPUT"
+          max_bytes = int(os.environ.get("MAX_DIFF_BYTES", "180000"))
+
+          with open("pr_files.json", "r", encoding="utf-8") as handle:
+            files = json.load(handle)
+
+          total_add = 0
+          total_del = 0
+          lines = []
+          for item in files:
+            filename = item.get("filename", "")
+            status = item.get("status", "modified")
+            additions = int(item.get("additions", 0) or 0)
+            deletions = int(item.get("deletions", 0) or 0)
+            changes = int(item.get("changes", additions + deletions) or 0)
+            total_add += additions
+            total_del += deletions
+            lines.append(f"- [{status}] {filename} (+{additions} -{deletions}, ~{changes})")
+
+          body = "\n".join([
+            "Changed files (summary):",
+            f"- count: {len(files)}",
+            f"- additions: {total_add}",
+            f"- deletions: {total_del}",
+            "",
+            *lines,
+            "",
+          ])
+
+          truncated = False
+          encoded = body.encode("utf-8")
+          if len(encoded) > max_bytes:
+            body = encoded[:max_bytes].decode("utf-8", errors="ignore")
+            body = body.rsplit("\n", 1)[0] + "\n...[truncated]\n"
+            truncated = True
+
+          with open("pr_files_summary.md", "w", encoding="utf-8") as out:
+            out.write(body)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+            out.write(f"truncated={'true' if truncated else 'false'}\n")
+            out.write(f"file_count={len(files)}\n")
+          PY
 
       - name: Build Codex prompt and schema
         id: prompt
@@ -69,7 +112,7 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BODY: ${{ github.event.pull_request.body || '' }}
-          DIFF_TRUNCATED: ${{ steps.diff.outputs.truncated }}
+          FILES_SUMMARY_TRUNCATED: ${{ steps.changed_files.outputs.truncated }}
         run: |
           set -euo pipefail
 
@@ -107,6 +150,13 @@ jobs:
           - 모니터링/로깅/디버깅 관점의 운영성이 확보되어야 한다.
           - 설정/환경 변수 변경이 명확히 관리되어야 한다.
           - 배포 후 회귀 위험을 줄이는 장치가 있어야 한다.
+
+          ## 변경사항 확인 방식 (필수)
+          - 전체 패치 텍스트는 제공되지 않는다.
+          - 반드시 체크아웃된 저장소에서 직접 변경사항을 확인한다.
+          - 우선 `git diff --name-only HEAD^1..HEAD`로 변경 파일 목록을 확인한다.
+          - 필요한 파일에 한해 `git diff HEAD^1..HEAD -- <path>`와 파일 내용을 조회한다.
+          - 아래 요약된 파일 목록과 직접 조회 결과가 다르면 직접 조회 결과를 우선한다.
 
           ---
 
@@ -294,16 +344,22 @@ jobs:
             echo "PR number: ${PR_NUMBER}"
             echo "PR title: ${PR_TITLE}"
             echo "PR author: ${PR_AUTHOR}"
-            echo "Diff truncated: ${DIFF_TRUNCATED}"
+            echo "Changed files summary truncated: ${FILES_SUMMARY_TRUNCATED}"
             echo ""
             echo "PR body and linked issues:"
           } >> codex_prompt.md
           cat pr_context.md >> codex_prompt.md
           {
             echo ""
-            echo "DIFF:"
+            echo "Changed files summary:"
           } >> codex_prompt.md
-          cat pr.diff >> codex_prompt.md
+          cat pr_files_summary.md >> codex_prompt.md
+          {
+            echo ""
+            echo "Workspace inspection reminder:"
+            echo "- Review ONLY PR-introduced changes by inspecting local git/file context."
+            echo "- Do not assume unchanged files are modified."
+          } >> codex_prompt.md
 
       - name: Run Codex with selected model
         id: codex_model

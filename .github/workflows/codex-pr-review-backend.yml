@@ -4,10 +4,10 @@ on:
   workflow_call:
     inputs:
       model:
-        description: "Model name for review (e.g. your Codex model id)"
+        description: "Model name for review (leave empty to use gpt-5.2-codex)"
         required: false
         type: string
-        default: "gpt-5.3-codex"
+        default: "gpt-5.2-codex"
       max_diff_bytes:
         description: "Limit diff size to avoid huge payloads"
         required: false
@@ -181,14 +181,26 @@ jobs:
           } >> codex_prompt.md
           cat pr.diff >> codex_prompt.md
 
-      - name: Run Codex (openai/codex-action)
-        id: codex
+      - name: Run Codex with selected model
+        id: codex_model
         uses: openai/codex-action@v1
         continue-on-error: true
         with:
           openai-api-key: ${{ secrets.CODEX_API_TOKEN }}
           prompt-file: codex_prompt.md
-          model: ${{ inputs.model }}
+          model: ${{ inputs.model || 'gpt-5.2-codex' }}
+          sandbox: read-only
+          safety-strategy: drop-sudo
+          allow-bots: true
+
+      - name: Run Codex with auto-selected model
+        id: codex_auto
+        if: ${{ steps.codex_model.outcome != 'success' }}
+        uses: openai/codex-action@v1
+        continue-on-error: true
+        with:
+          openai-api-key: ${{ secrets.CODEX_API_TOKEN }}
+          prompt-file: codex_prompt.md
           sandbox: read-only
           safety-strategy: drop-sudo
           allow-bots: true
@@ -196,8 +208,11 @@ jobs:
       - name: Prepare review output
         id: call
         env:
-          CODEX_FINAL_MESSAGE: ${{ steps.codex.outputs.final-message }}
-          CODEX_OUTCOME: ${{ steps.codex.outcome }}
+          CODEX_FINAL_MESSAGE: ${{ steps.codex_auto.outputs.final-message || steps.codex_model.outputs.final-message }}
+          CODEX_OUTCOME: ${{ steps.codex_auto.outcome || steps.codex_model.outcome || 'failure' }}
+          CODEX_MODEL_OUTCOME: ${{ steps.codex_model.outcome || 'skipped' }}
+          CODEX_AUTO_OUTCOME: ${{ steps.codex_auto.outcome || 'skipped' }}
+          REQUESTED_MODEL: ${{ inputs.model || 'gpt-5.2-codex' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -207,6 +222,9 @@ jobs:
 
           raw = os.environ.get("CODEX_FINAL_MESSAGE") or ""
           outcome = os.environ.get("CODEX_OUTCOME") or ""
+          model_outcome = os.environ.get("CODEX_MODEL_OUTCOME") or ""
+          auto_outcome = os.environ.get("CODEX_AUTO_OUTCOME") or ""
+          requested_model = os.environ.get("REQUESTED_MODEL") or ""
           run_url = os.environ.get("RUN_URL") or ""
 
           def fallback(reason: str) -> str:
@@ -283,7 +301,11 @@ jobs:
             return True, ""
 
           if not raw.strip():
-            out = fallback(f"Codex action produced no output (outcome={outcome}). Logs: {run_url}")
+            if requested_model:
+              reason = f"Codex produced no output. requested_model={requested_model}, model_outcome={model_outcome}, auto_outcome={auto_outcome}, outcome={outcome}. Logs: {run_url}"
+            else:
+              reason = f"Codex produced no output. auto_outcome={auto_outcome}, outcome={outcome}. Logs: {run_url}"
+            out = fallback(reason)
             ok = False
           else:
             valid, why = is_valid_template(raw)

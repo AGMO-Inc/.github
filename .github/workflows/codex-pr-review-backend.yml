@@ -74,103 +74,129 @@ jobs:
           set -euo pipefail
 
           cat > codex_prompt.md <<'EOF'
-          You are a senior code reviewer for the project
+          당신은 프로젝트의 시니어 백엔드 코드 리뷰어다.
 
-          ## Backend Review Criteria (5 × 20 = 100)
+          ## 백엔드 리뷰 기준 (5 x 20 = 100)
 
-          ### 1. Security (0-20)
-          - No hardcoded secrets, API keys, or credentials
-          - No SQL injection or command injection vulnerabilities
-          - Proper input validation at API boundaries (@Valid, Bean Validation)
-          - No sensitive data exposure in logs or error messages
-          - Authentication/authorization configured correctly (Spring Security, JWT)
+          ### 1. 보안 (0-20)
+          - 하드코딩된 비밀값, API 키, 인증정보가 없어야 한다.
+          - SQL 인젝션/커맨드 인젝션 위험이 없어야 한다.
+          - API 경계에서 입력 검증이 적절히 수행되어야 한다.
+          - 로그/에러 메시지에 민감정보가 노출되지 않아야 한다.
+          - 인증/인가 구성이 의도대로 동작해야 한다.
 
-          ### 2. Code Quality (0-20)
-          - Clean, readable Kotlin code following project conventions
-          - Proper error handling and exception management (sealed class, Result)
-          - Functions and classes have single responsibility
-          - Kotlin idioms used appropriately (data class, extension functions, null safety)
-          - No unnecessary complexity, dead code, or code duplication
+          ### 2. 코드 품질 (0-20)
+          - Kotlin 코드가 읽기 쉽고 프로젝트 규칙을 따라야 한다.
+          - 에러 처리와 예외 관리가 일관되어야 한다.
+          - 함수/클래스의 책임이 과도하게 섞이지 않아야 한다.
+          - Kotlin 관용구와 null 안전성이 적절히 사용되어야 한다.
+          - 불필요한 복잡도, 중복, 죽은 코드가 없어야 한다.
 
-          ### 3. Architecture (0-20)
-          - Hexagonal Architecture compliance (port/adapter separation)
-          - Dependencies point inward (infrastructure → application → domain)
-          - Use cases are clearly defined and isolated in application layer
-          - DTOs used at boundaries — entities not exposed to controllers
-          - Changes are consistent with existing patterns and layer conventions
+          ### 3. 아키텍처 (0-20)
+          - 레이어/책임 분리가 기존 아키텍처 원칙과 일치해야 한다.
+          - 의존성 방향과 경계가 올바르게 유지되어야 한다.
+          - 유스케이스와 도메인 책임이 명확해야 한다.
+          - DTO/엔티티 경계가 무너지지 않아야 한다.
+          - 기존 코드베이스 패턴과 충돌하지 않아야 한다.
 
-          ### 4. Correctness (0-20)
-          - Logic is correct and handles edge cases
-          - No obvious bugs or runtime errors
-          - API contracts (request/response DTOs) are properly maintained
-          - Database queries are correct (JPA mappings, lazy loading, N+1)
-          - Environment-specific configurations are correct
+          ### 4. 정확성 (0-20)
+          - 로직이 요구사항과 엣지 케이스를 올바르게 처리해야 한다.
+          - 명백한 버그/런타임 오류 가능성이 없어야 한다.
+          - API 계약(요청/응답)이 유지되어야 한다.
+          - DB 쿼리/매핑/N+1 위험이 적절히 관리되어야 한다.
+          - 환경별 설정이 의도대로 반영되어야 한다.
 
-          ### 5. Performance & Data (0-20)
-          - Database queries are efficient (indexes, pagination, batch operations)
-          - No unnecessary blocking calls in request handling
-          - Proper caching strategy where applicable
-          - Transaction boundaries are appropriate (@Transactional scope)
-          - Resource cleanup (connections, streams) handled correctly
+          ### 5. 성능 및 데이터 (0-20)
+          - 쿼리/페이징/인덱스 등 데이터 접근이 효율적이어야 한다.
+          - 요청 경로에서 불필요한 블로킹 작업이 없어야 한다.
+          - 캐시/트랜잭션 경계가 합리적으로 설정되어야 한다.
+          - 리소스 정리(연결/스트림)가 누락되지 않아야 한다.
 
           ---
 
-          ## OUTPUT FORMAT (MANDATORY)
+          ## 출력 형식 (필수)
 
-          You MUST follow this EXACT format. Category names change per role (see below).
+          아래 형식을 반드시 그대로 따른다.
+          계층은 Markdown 헤더를 사용한다: H2(`##`) > H3(`###`).
 
-          ### Backend Output
+          ```markdown
+          ## 요약
+          - 총점: {5개 점수 합계}/100
+          - 판정: {합격 (🟢 O) if 총점 >= 80, 불합격 (🔴 X) if 총점 < 80}
+          - 총평: {전체 평가 1~2문장}
 
-          ```
-          [REVIEW_START]
-
-          [SUMMARY]
-          TOTAL: {sum of 5 scores}/100
-          VERDICT: {PASS (🟢 O) if total >= 80, FAIL (🔴 X) if total < 80}
-          COMMENT: {1-2 sentence overall assessment}
-
-          [SECURITY]
-          SCORE: {number}/20
-          ISSUES:
-          - {issue description or "None"}
-          RECOMMENDATION: {one-line recommendation or "N/A"}
-
-          [CODE_QUALITY]
-          SCORE: {number}/20
-          ISSUES:
-          - {issue description or "None"}
-          RECOMMENDATION: {one-line recommendation or "N/A"}
-
-          [ARCHITECTURE]
-          SCORE: {number}/20
-          ISSUES:
-          - {issue description or "None"}
-          RECOMMENDATION: {one-line recommendation or "N/A"}
-
-          [CORRECTNESS]
-          SCORE: {number}/20
-          ISSUES:
-          - {issue description or "None"}
-          RECOMMENDATION: {one-line recommendation or "N/A"}
-
-          [PERFORMANCE_DATA]
-          SCORE: {number}/20
-          ISSUES:
-          - {issue description or "None"}
-          RECOMMENDATION: {one-line recommendation or "N/A"}
-
-          [REVIEW_END]
+          ## 1. 보안
+          ### 점수
+          점수: {number}/20
+          ### 문제
+          - {문제 설명}
+          ### 해결 방법
+          - {해결 방안}
+          ### 예시
+          ```kotlin
+          {코드 예시 또는 "해당 없음"}
           ```
 
-          ### Rules:
-          1. Each SCORE MUST be a single integer from 0-20
-          2. TOTAL MUST equal the exact sum of the 5 scores
-          3. VERDICT MUST be exactly "PASS (🟢 O)" or "FAIL (🔴 X)" (PASS if TOTAL >= 80, FAIL otherwise)
-          4. Every section MUST have at least one ISSUES bullet (use "None" if no issues)
-          5. Do NOT add markdown headers (###), bold (**), or any formatting outside this template
-          6. The `[REVIEW_START]` and `[REVIEW_END]` tags MUST be present
-          7. ISSUES should be concrete and actionable with file paths and line numbers where possible
-          8. Use the correct category names for the detected role
+          ## 2. 코드 품질
+          ### 점수
+          점수: {number}/20
+          ### 문제
+          - {문제 설명}
+          ### 해결 방법
+          - {해결 방안}
+          ### 예시
+          ```kotlin
+          {코드 예시 또는 "해당 없음"}
+          ```
+
+          ## 3. 아키텍처
+          ### 점수
+          점수: {number}/20
+          ### 문제
+          - {문제 설명}
+          ### 해결 방법
+          - {해결 방안}
+          ### 예시
+          ```kotlin
+          {코드 예시 또는 "해당 없음"}
+          ```
+
+          ## 4. 정확성
+          ### 점수
+          점수: {number}/20
+          ### 문제
+          - {문제 설명}
+          ### 해결 방법
+          - {해결 방안}
+          ### 예시
+          ```kotlin
+          {코드 예시 또는 "해당 없음"}
+          ```
+
+          ## 5. 성능 및 데이터
+          ### 점수
+          점수: {number}/20
+          ### 문제
+          - {문제 설명}
+          ### 해결 방법
+          - {해결 방안}
+          ### 예시
+          ```kotlin
+          {코드 예시 또는 "해당 없음"}
+          ```
+          ```
+
+          ### 규칙
+          1. 각 점수는 0~20의 정수만 사용한다.
+          2. 총점은 5개 점수의 정확한 합이어야 한다.
+          3. 판정은 반드시 `합격 (🟢 O)` 또는 `불합격 (🔴 X)`만 사용한다.
+          4. 각 카테고리의 `### 문제`는 bullet 기준 0~3개까지 작성한다.
+          5. 문제가 없으면 `- 없음` 한 줄만 작성한다.
+          6. 각 카테고리는 `### 점수`, `### 문제`, `### 해결 방법`, `### 예시`를 모두 포함한다.
+          7. 5개 카테고리 H2 제목은 반드시 번호를 포함한다 (`## 1. 보안` ~ `## 5. 성능 및 데이터`).
+          8. 요약의 `총점`, `판정`, `총평`은 반드시 `- ` 리스트 형태로 작성한다.
+          9. 문제/해결 방법은 가능한 경우 파일 경로와 라인 정보를 포함한다 (`path:line`).
+          10. 설명은 한국어로 작성한다.
           EOF
 
           python - <<'PY'
@@ -332,77 +358,138 @@ jobs:
           def fallback(reason: str) -> str:
             reason = reason.strip().replace("\n", " ")
             return "\n".join([
-              "[REVIEW_START]",
+              "## 요약",
+              "- 총점: 0/100",
+              "- 판정: 불합격 (🔴 X)",
+              "- 총평: Codex 리뷰 결과를 생성하지 못했습니다.",
               "",
-              "[SUMMARY]",
-              "TOTAL: 0/100",
-              "VERDICT: FAIL (🔴 X)",
-              "COMMENT: Codex review failed to produce a valid report.",
-              "",
-              "[SECURITY]",
-              "SCORE: 0/20",
-              "ISSUES:",
+              "## 1. 보안",
+              "### 점수",
+              "점수: 0/20",
+              "### 문제",
               f"- {reason}",
-              "RECOMMENDATION: N/A",
+              "### 해결 방법",
+              "- 해당 없음",
+              "### 예시",
+              "```text",
+              "해당 없음",
+              "```",
               "",
-              "[CODE_QUALITY]",
-              "SCORE: 0/20",
-              "ISSUES:",
-              "- None",
-              "RECOMMENDATION: N/A",
+              "## 2. 코드 품질",
+              "### 점수",
+              "점수: 0/20",
+              "### 문제",
+              "- 없음",
+              "### 해결 방법",
+              "- 해당 없음",
+              "### 예시",
+              "```text",
+              "해당 없음",
+              "```",
               "",
-              "[ARCHITECTURE]",
-              "SCORE: 0/20",
-              "ISSUES:",
-              "- None",
-              "RECOMMENDATION: N/A",
+              "## 3. 아키텍처",
+              "### 점수",
+              "점수: 0/20",
+              "### 문제",
+              "- 없음",
+              "### 해결 방법",
+              "- 해당 없음",
+              "### 예시",
+              "```text",
+              "해당 없음",
+              "```",
               "",
-              "[CORRECTNESS]",
-              "SCORE: 0/20",
-              "ISSUES:",
-              "- None",
-              "RECOMMENDATION: N/A",
+              "## 4. 정확성",
+              "### 점수",
+              "점수: 0/20",
+              "### 문제",
+              "- 없음",
+              "### 해결 방법",
+              "- 해당 없음",
+              "### 예시",
+              "```text",
+              "해당 없음",
+              "```",
               "",
-              "[PERFORMANCE_DATA]",
-              "SCORE: 0/20",
-              "ISSUES:",
-              "- None",
-              "RECOMMENDATION: N/A",
-              "",
-              "[REVIEW_END]",
+              "## 5. 성능 및 데이터",
+              "### 점수",
+              "점수: 0/20",
+              "### 문제",
+              "- 없음",
+              "### 해결 방법",
+              "- 해당 없음",
+              "### 예시",
+              "```text",
+              "해당 없음",
+              "```",
               "",
             ])
 
           def is_valid_template(s: str) -> tuple[bool, str]:
-            if "[REVIEW_START]" not in s or "[REVIEW_END]" not in s:
-              return False, "Missing [REVIEW_START]/[REVIEW_END] tags"
-            # Extract 5 category scores
-            score_re = re.compile(r"^SCORE:\s*(\d{1,2})/20\s*$", re.MULTILINE)
+            required_h2 = ["요약", "1. 보안", "2. 코드 품질", "3. 아키텍처", "4. 정확성", "5. 성능 및 데이터"]
+            for section in required_h2:
+              if f"## {section}" not in s:
+                return False, f"Missing H2 section: {section}"
+
+            score_re = re.compile(r"^점수:\s*(\d{1,2})/20\s*$", re.MULTILINE)
             scores = [int(x) for x in score_re.findall(s)]
             if len(scores) < 5:
-              return False, f"Expected 5 SCORE lines, found {len(scores)}"
+              return False, f"Expected 5 점수 lines, found {len(scores)}"
             scores = scores[:5]
             if any(x < 0 or x > 20 for x in scores):
               return False, "Score out of range"
 
-            m_total = re.search(r"^TOTAL:\s*(\d{1,3})/100\s*$", s, re.MULTILINE)
+            m_total = re.search(r"^- 총점:\s*(\d{1,3})/100\s*$", s, re.MULTILINE)
             if not m_total:
-              return False, "Missing TOTAL line"
+              return False, "Missing 총점 line"
             total = int(m_total.group(1))
             if total != sum(scores):
-              return False, f"TOTAL mismatch (got {total}, expected {sum(scores)})"
+              return False, f"총점 mismatch (got {total}, expected {sum(scores)})"
 
-            m_verdict = re.search(r"^VERDICT:\s*(PASS|FAIL)\s*\(([^)]+)\)\s*$", s, re.MULTILINE)
+            m_verdict = re.search(r"^- 판정:\s*(합격|불합격)\s*\(([^)]+)\)\s*$", s, re.MULTILINE)
             if not m_verdict:
-              return False, "Missing VERDICT line"
+              return False, "Missing 판정 line"
             verdict = m_verdict.group(1)
             marker = m_verdict.group(2).strip()
-            expected = "PASS" if total >= 80 else "FAIL"
+            expected = "합격" if total >= 80 else "불합격"
             if verdict != expected:
-              return False, f"VERDICT mismatch (got {verdict}, expected {expected})"
-            expected_marker = "🟢 O" if expected == "PASS" else "🔴 X"
+              return False, f"판정 mismatch (got {verdict}, expected {expected})"
+            expected_marker = "🟢 O" if expected == "합격" else "🔴 X"
             if marker != expected_marker:
-              return False, f"VERDICT marker mismatch (got {marker}, expected {expected_marker})"
+              return False, f"판정 marker mismatch (got {marker}, expected {expected_marker})"
+
+            if not re.search(r"^- 총평:\s*.+$", s, re.MULTILINE):
+              return False, "Missing 총평 line"
+
+            section_names = ["1. 보안", "2. 코드 품질", "3. 아키텍처", "4. 정확성", "5. 성능 및 데이터"]
+            for section in section_names:
+              m_section = re.search(
+                rf"## {re.escape(section)}\n(?P<body>.*?)(?=\n## |\Z)",
+                s,
+                re.DOTALL,
+              )
+              if not m_section:
+                return False, f"Missing section body: {section}"
+              body = m_section.group("body")
+              for required_h3 in ["### 점수", "### 문제", "### 해결 방법", "### 예시"]:
+                if required_h3 not in body:
+                  return False, f"Missing {required_h3} in {section}"
+
+              try:
+                issues_part = body.split("### 문제\n", 1)[1].split("\n### 해결 방법", 1)[0]
+              except Exception:
+                return False, f"Cannot parse 문제 block in {section}"
+
+              issue_lines = [ln.strip() for ln in issues_part.splitlines() if ln.strip().startswith("- ")]
+              if not issue_lines:
+                return False, f"문제 bullet missing in {section}"
+              if issue_lines == ["- 없음"]:
+                pass
+              else:
+                if any(ln == "- 없음" for ln in issue_lines):
+                  return False, f"문제 block mixes '없음' with other issues in {section}"
+                if len(issue_lines) > 3:
+                  return False, f"문제 bullet count exceeds 3 in {section}"
 
             return True, ""
 

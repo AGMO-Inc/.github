@@ -20,6 +20,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: read
 
 jobs:
   review:
@@ -62,9 +63,12 @@ jobs:
       - name: Build Codex prompt and schema
         id: prompt
         env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_FULL: ${{ github.repository }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body || '' }}
           DIFF_TRUNCATED: ${{ steps.diff.outputs.truncated }}
         run: |
           set -euo pipefail
@@ -120,6 +124,11 @@ jobs:
           ```
           [REVIEW_START]
 
+          [SUMMARY]
+          TOTAL: {sum of 5 scores}/100
+          VERDICT: {PASS (🟢 O) if total >= 80, FAIL (🔴 X) if total < 80}
+          COMMENT: {1-2 sentence overall assessment}
+
           [SECURITY]
           SCORE: {number}/20
           ISSUES:
@@ -150,24 +159,112 @@ jobs:
           - {issue description or "None"}
           RECOMMENDATION: {one-line recommendation or "N/A"}
 
-          [SUMMARY]
-          TOTAL: {sum of 5 scores}/100
-          VERDICT: {PASS if total >= 80, FAIL if total < 80}
-          COMMENT: {1-2 sentence overall assessment}
-
           [REVIEW_END]
           ```
 
           ### Rules:
           1. Each SCORE MUST be a single integer from 0-20
           2. TOTAL MUST equal the exact sum of the 5 scores
-          3. VERDICT MUST be exactly "PASS" or "FAIL" (PASS if TOTAL >= 80, FAIL otherwise)
+          3. VERDICT MUST be exactly "PASS (🟢 O)" or "FAIL (🔴 X)" (PASS if TOTAL >= 80, FAIL otherwise)
           4. Every section MUST have at least one ISSUES bullet (use "None" if no issues)
           5. Do NOT add markdown headers (###), bold (**), or any formatting outside this template
           6. The `[REVIEW_START]` and `[REVIEW_END]` tags MUST be present
           7. ISSUES should be concrete and actionable with file paths and line numbers where possible
           8. Use the correct category names for the detected role
           EOF
+
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          repo_full = os.environ.get("REPO_FULL", "")
+          owner, repo = repo_full.split("/", 1)
+          pr_number = int(os.environ["PR_NUMBER"])
+          token = os.environ.get("GH_TOKEN", "")
+          pr_body = (os.environ.get("PR_BODY") or "").strip()
+          if not pr_body:
+            pr_body = "None"
+          elif len(pr_body) > 4000:
+            pr_body = pr_body[:4000] + "\n...[truncated]"
+
+          query = """
+          query($owner: String!, $repo: String!, $number: Int!) {
+            repository(owner: $owner, name: $repo) {
+              pullRequest(number: $number) {
+                closingIssuesReferences(first: 10) {
+                  nodes {
+                    number
+                    title
+                    url
+                    state
+                    bodyText
+                  }
+                }
+              }
+            }
+          }
+          """
+
+          issue_nodes = []
+          issue_lookup_error = ""
+          try:
+            req_body = json.dumps(
+              {
+                "query": query,
+                "variables": {"owner": owner, "repo": repo, "number": pr_number},
+              }
+            ).encode("utf-8")
+            req = urllib.request.Request(
+              "https://api.github.com/graphql",
+              data=req_body,
+              headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Accept": "application/vnd.github+json",
+              },
+              method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+              payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+            issue_nodes = (
+              payload.get("data", {})
+              .get("repository", {})
+              .get("pullRequest", {})
+              .get("closingIssuesReferences", {})
+              .get("nodes", [])
+              or []
+            )
+          except Exception as exc:
+            issue_lookup_error = str(exc)
+
+          def one_line(text: str, limit: int) -> str:
+            compact = " ".join((text or "").split())
+            if not compact:
+              return "N/A"
+            if len(compact) > limit:
+              return compact[:limit] + "..."
+            return compact
+
+          with open("pr_context.md", "w", encoding="utf-8") as out:
+            out.write("PR body:\n")
+            out.write(pr_body + "\n\n")
+            out.write("Linked issues:\n")
+            if issue_nodes:
+              for node in issue_nodes:
+                number = node.get("number")
+                state = one_line(node.get("state", ""), 30)
+                title = one_line(node.get("title", ""), 200)
+                url = one_line(node.get("url", ""), 400)
+                body = one_line(node.get("bodyText", ""), 240)
+                out.write(f"- #{number} [{state}] {title} ({url})\n")
+                out.write(f"  Context: {body}\n")
+            else:
+              if issue_lookup_error:
+                out.write(f"- None (lookup failed: {one_line(issue_lookup_error, 160)})\n")
+              else:
+                out.write("- None\n")
+          PY
 
           {
             echo ""
@@ -176,6 +273,11 @@ jobs:
             echo "PR title: ${PR_TITLE}"
             echo "PR author: ${PR_AUTHOR}"
             echo "Diff truncated: ${DIFF_TRUNCATED}"
+            echo ""
+            echo "PR body and linked issues:"
+          } >> codex_prompt.md
+          cat pr_context.md >> codex_prompt.md
+          {
             echo ""
             echo "DIFF:"
           } >> codex_prompt.md
@@ -232,6 +334,11 @@ jobs:
             return "\n".join([
               "[REVIEW_START]",
               "",
+              "[SUMMARY]",
+              "TOTAL: 0/100",
+              "VERDICT: FAIL (🔴 X)",
+              "COMMENT: Codex review failed to produce a valid report.",
+              "",
               "[SECURITY]",
               "SCORE: 0/20",
               "ISSUES:",
@@ -262,11 +369,6 @@ jobs:
               "- None",
               "RECOMMENDATION: N/A",
               "",
-              "[SUMMARY]",
-              "TOTAL: 0/100",
-              "VERDICT: FAIL",
-              "COMMENT: Codex review failed to produce a valid report.",
-              "",
               "[REVIEW_END]",
               "",
             ])
@@ -290,13 +392,17 @@ jobs:
             if total != sum(scores):
               return False, f"TOTAL mismatch (got {total}, expected {sum(scores)})"
 
-            m_verdict = re.search(r"^VERDICT:\s*(PASS|FAIL)\s*$", s, re.MULTILINE)
+            m_verdict = re.search(r"^VERDICT:\s*(PASS|FAIL)\s*\(([^)]+)\)\s*$", s, re.MULTILINE)
             if not m_verdict:
               return False, "Missing VERDICT line"
             verdict = m_verdict.group(1)
+            marker = m_verdict.group(2).strip()
             expected = "PASS" if total >= 80 else "FAIL"
             if verdict != expected:
               return False, f"VERDICT mismatch (got {verdict}, expected {expected})"
+            expected_marker = "🟢 O" if expected == "PASS" else "🔴 X"
+            if marker != expected_marker:
+              return False, f"VERDICT marker mismatch (got {marker}, expected {expected_marker})"
 
             return True, ""
 

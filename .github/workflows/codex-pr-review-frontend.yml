@@ -74,101 +74,130 @@ jobs:
           set -euo pipefail
 
           cat > codex_prompt.md <<'EOF'
-          You are a senior code reviewer for the project
+          당신은 프로젝트의 시니어 프론트엔드 코드 리뷰어다.
 
-          ## Frontend Review Criteria (5 x 20 = 100)
+          ## 프론트엔드 리뷰 기준 (5 x 20 = 100)
 
-          ### 1. Security (0-20)
-          - No XSS vulnerabilities (dangerouslySetInnerHTML, unsanitized user input)
-          - No hardcoded secrets, API keys, or tokens in client code
-          - Proper input sanitization before rendering (DOMPurify if needed)
-          - No sensitive data stored in localStorage/sessionStorage without encryption
-          - CSRF protection for state-changing operations
+          ### 1. 보안 (0-20)
+          - XSS 위험(dangerouslySetInnerHTML, 검증되지 않은 사용자 입력)이 없어야 한다.
+          - 클라이언트 코드에 비밀값, API 키, 토큰 하드코딩이 없어야 한다.
+          - 렌더링 전 입력값 정제/검증이 적절히 적용되어야 한다.
+          - localStorage/sessionStorage에 민감정보 저장이 신중히 관리되어야 한다.
+          - 상태 변경 요청에서 CSRF 등 기본 보안 고려가 반영되어야 한다.
 
-          ### 2. Code Quality (0-20)
-          - Clean, readable TypeScript/React code following project conventions
-          - Proper TypeScript typing (no excessive any, API types match backend)
-          - Components follow single responsibility principle
-          - Hooks used correctly (dependency arrays, cleanup in useEffect)
-          - No unnecessary complexity, dead code, or unused imports
+          ### 2. 코드 품질 (0-20)
+          - TypeScript/React 코드가 읽기 쉽고 프로젝트 규칙을 따라야 한다.
+          - 타입 안정성이 적절해야 하며 불필요한 any 남용이 없어야 한다.
+          - 컴포넌트/훅 책임이 과도하게 섞이지 않아야 한다.
+          - useEffect 의존성/정리(cleanup)가 올바르게 처리되어야 한다.
+          - 불필요한 복잡도, 중복, 죽은 코드가 없어야 한다.
 
-          ### 3. UI/UX & Accessibility (0-20)
-          - Design system adherence (CSS variables, design tokens from design/)
-          - Responsive design and mobile-first approach
-          - Accessibility basics (semantic HTML, aria labels, keyboard navigation)
-          - Consistent spacing, typography, and color usage
-          - Animation/transition consistency with existing patterns
+          ### 3. UI/UX 및 접근성 (0-20)
+          - 디자인 시스템/토큰/컴포넌트 패턴을 준수해야 한다.
+          - 반응형과 모바일 환경 동작이 자연스러워야 한다.
+          - 시맨틱 마크업, aria, 키보드 탐색 등 접근성이 확보되어야 한다.
+          - 간격/타이포/색상 사용이 일관되어야 한다.
+          - 애니메이션/전환이 기존 패턴과 충돌하지 않아야 한다.
 
-          ### 4. Correctness (0-20)
-          - Logic is correct and handles edge cases
-          - No obvious bugs or runtime errors
-          - State management is correct (no stale closures, race conditions)
-          - API integration is correct (error handling, loading states, edge cases)
-          - Event listeners cleaned up properly on unmount
+          ### 4. 정확성 (0-20)
+          - 로직이 요구사항과 엣지 케이스를 올바르게 처리해야 한다.
+          - 명백한 버그/런타임 오류 가능성이 없어야 한다.
+          - 상태 관리(경합, stale closure 등)가 안정적으로 동작해야 한다.
+          - API 연동(로딩/오류/예외 흐름)이 정확해야 한다.
+          - 이벤트 리스너/타이머 등 리소스 정리가 누락되지 않아야 한다.
 
-          ### 5. Performance (0-20)
-          - No unnecessary re-renders (React.memo, useMemo, useCallback where needed)
-          - Lazy loading applied for routes and large components (React.lazy, Suspense)
-          - Bundle size conscious (no oversized dependencies, tree-shaking friendly)
-          - Lists optimized (proper key props, virtualization for large datasets)
-          - Images and media optimized (lazy loading, proper formats, compression)
+          ### 5. 성능 (0-20)
+          - 불필요한 리렌더가 최소화되어야 한다.
+          - 라우트/대형 컴포넌트 지연 로딩이 적절히 적용되어야 한다.
+          - 번들 크기/의존성 사용이 합리적이어야 한다.
+          - 리스트 렌더링(key, 가상화 등)이 효율적이어야 한다.
+          - 이미지/미디어 로딩 전략이 최적화되어야 한다.
 
           ---
 
-          ## OUTPUT FORMAT (MANDATORY)
+          ## 출력 형식 (필수)
 
-          You MUST follow this EXACT format.
+          아래 형식을 반드시 그대로 따른다.
+          계층은 Markdown 헤더를 사용한다: H2(`##`) > H3(`###`).
 
-          ```
-          [REVIEW_START]
+          ```markdown
+          ## 요약
+          - 총점: {5개 점수 합계}/100
+          - 판정: {합격 (🟢 O) if 총점 >= 80, 불합격 (🔴 X) if 총점 < 80}
+          - 총평: {전체 평가 1~2문장}
 
-          [SUMMARY]
-          TOTAL: {sum of 5 scores}/100
-          VERDICT: {PASS (🟢 O) if total >= 80, FAIL (🔴 X) if total < 80}
-          COMMENT: {1-2 sentence overall assessment}
-
-          [SECURITY]
-          SCORE: {number}/20
-          ISSUES:
-          - {issue description or "None"}
-          RECOMMENDATION: {one-line recommendation or "N/A"}
-
-          [CODE_QUALITY]
-          SCORE: {number}/20
-          ISSUES:
-          - {issue description or "None"}
-          RECOMMENDATION: {one-line recommendation or "N/A"}
-
-          [UI_UX_ACCESSIBILITY]
-          SCORE: {number}/20
-          ISSUES:
-          - {issue description or "None"}
-          RECOMMENDATION: {one-line recommendation or "N/A"}
-
-          [CORRECTNESS]
-          SCORE: {number}/20
-          ISSUES:
-          - {issue description or "None"}
-          RECOMMENDATION: {one-line recommendation or "N/A"}
-
-          [PERFORMANCE]
-          SCORE: {number}/20
-          ISSUES:
-          - {issue description or "None"}
-          RECOMMENDATION: {one-line recommendation or "N/A"}
-
-          [REVIEW_END]
+          ## 1. 보안
+          ### 점수
+          점수: {number}/20
+          ### 문제
+          - {문제 설명}
+          ### 해결 방법
+          - {해결 방안}
+          ### 예시
+          ```tsx
+          {코드 예시 또는 "해당 없음"}
           ```
 
-          ### Rules:
-          1. Each SCORE MUST be a single integer from 0-20
-          2. TOTAL MUST equal the exact sum of the 5 scores
-          3. VERDICT MUST be exactly "PASS (🟢 O)" or "FAIL (🔴 X)" (PASS if TOTAL >= 80, FAIL otherwise)
-          4. Every section MUST have at least one ISSUES bullet (use "None" if no issues)
-          5. Do NOT add markdown headers (###), bold (**), or any formatting outside this template
-          6. The `[REVIEW_START]` and `[REVIEW_END]` tags MUST be present
-          7. ISSUES should be concrete and actionable with file paths and line numbers where possible
-          8. Use the correct frontend category names: SECURITY, CODE_QUALITY, UI_UX_ACCESSIBILITY, CORRECTNESS, PERFORMANCE
+          ## 2. 코드 품질
+          ### 점수
+          점수: {number}/20
+          ### 문제
+          - {문제 설명}
+          ### 해결 방법
+          - {해결 방안}
+          ### 예시
+          ```tsx
+          {코드 예시 또는 "해당 없음"}
+          ```
+
+          ## 3. UI/UX 및 접근성
+          ### 점수
+          점수: {number}/20
+          ### 문제
+          - {문제 설명}
+          ### 해결 방법
+          - {해결 방안}
+          ### 예시
+          ```tsx
+          {코드 예시 또는 "해당 없음"}
+          ```
+
+          ## 4. 정확성
+          ### 점수
+          점수: {number}/20
+          ### 문제
+          - {문제 설명}
+          ### 해결 방법
+          - {해결 방안}
+          ### 예시
+          ```tsx
+          {코드 예시 또는 "해당 없음"}
+          ```
+
+          ## 5. 성능
+          ### 점수
+          점수: {number}/20
+          ### 문제
+          - {문제 설명}
+          ### 해결 방법
+          - {해결 방안}
+          ### 예시
+          ```tsx
+          {코드 예시 또는 "해당 없음"}
+          ```
+          ```
+
+          ### 규칙
+          1. 각 점수는 0~20의 정수만 사용한다.
+          2. 총점은 5개 점수의 정확한 합이어야 한다.
+          3. 판정은 반드시 `합격 (🟢 O)` 또는 `불합격 (🔴 X)`만 사용한다.
+          4. 각 카테고리의 `### 문제`는 bullet 기준 0~3개까지 작성한다.
+          5. 문제가 없으면 `- 없음` 한 줄만 작성한다.
+          6. 각 카테고리는 `### 점수`, `### 문제`, `### 해결 방법`, `### 예시`를 모두 포함한다.
+          7. 5개 카테고리 H2 제목은 반드시 번호를 포함한다 (`## 1. 보안` ~ `## 5. 성능`).
+          8. 요약의 `총점`, `판정`, `총평`은 반드시 `- ` 리스트 형태로 작성한다.
+          9. 문제/해결 방법은 가능한 경우 파일 경로와 라인 정보를 포함한다 (`path:line`).
+          10. 설명은 한국어로 작성한다.
           EOF
 
           python - <<'PY'
@@ -330,76 +359,138 @@ jobs:
           def fallback(reason: str) -> str:
             reason = reason.strip().replace("\n", " ")
             return "\n".join([
-              "[REVIEW_START]",
+              "## 요약",
+              "- 총점: 0/100",
+              "- 판정: 불합격 (🔴 X)",
+              "- 총평: Codex 리뷰 결과를 생성하지 못했습니다.",
               "",
-              "[SUMMARY]",
-              "TOTAL: 0/100",
-              "VERDICT: FAIL (🔴 X)",
-              "COMMENT: Codex review failed to produce a valid report.",
-              "",
-              "[SECURITY]",
-              "SCORE: 0/20",
-              "ISSUES:",
+              "## 1. 보안",
+              "### 점수",
+              "점수: 0/20",
+              "### 문제",
               f"- {reason}",
-              "RECOMMENDATION: N/A",
+              "### 해결 방법",
+              "- 해당 없음",
+              "### 예시",
+              "```text",
+              "해당 없음",
+              "```",
               "",
-              "[CODE_QUALITY]",
-              "SCORE: 0/20",
-              "ISSUES:",
-              "- None",
-              "RECOMMENDATION: N/A",
+              "## 2. 코드 품질",
+              "### 점수",
+              "점수: 0/20",
+              "### 문제",
+              "- 없음",
+              "### 해결 방법",
+              "- 해당 없음",
+              "### 예시",
+              "```text",
+              "해당 없음",
+              "```",
               "",
-              "[UI_UX_ACCESSIBILITY]",
-              "SCORE: 0/20",
-              "ISSUES:",
-              "- None",
-              "RECOMMENDATION: N/A",
+              "## 3. UI/UX 및 접근성",
+              "### 점수",
+              "점수: 0/20",
+              "### 문제",
+              "- 없음",
+              "### 해결 방법",
+              "- 해당 없음",
+              "### 예시",
+              "```text",
+              "해당 없음",
+              "```",
               "",
-              "[CORRECTNESS]",
-              "SCORE: 0/20",
-              "ISSUES:",
-              "- None",
-              "RECOMMENDATION: N/A",
+              "## 4. 정확성",
+              "### 점수",
+              "점수: 0/20",
+              "### 문제",
+              "- 없음",
+              "### 해결 방법",
+              "- 해당 없음",
+              "### 예시",
+              "```text",
+              "해당 없음",
+              "```",
               "",
-              "[PERFORMANCE]",
-              "SCORE: 0/20",
-              "ISSUES:",
-              "- None",
-              "RECOMMENDATION: N/A",
-              "",
-              "[REVIEW_END]",
+              "## 5. 성능",
+              "### 점수",
+              "점수: 0/20",
+              "### 문제",
+              "- 없음",
+              "### 해결 방법",
+              "- 해당 없음",
+              "### 예시",
+              "```text",
+              "해당 없음",
+              "```",
               "",
             ])
 
           def is_valid_template(s: str) -> tuple[bool, str]:
-            if "[REVIEW_START]" not in s or "[REVIEW_END]" not in s:
-              return False, "Missing [REVIEW_START]/[REVIEW_END] tags"
-            score_re = re.compile(r"^SCORE:\s*(\d{1,2})/20\s*$", re.MULTILINE)
+            required_h2 = ["요약", "1. 보안", "2. 코드 품질", "3. UI/UX 및 접근성", "4. 정확성", "5. 성능"]
+            for section in required_h2:
+              if f"## {section}" not in s:
+                return False, f"Missing H2 section: {section}"
+
+            score_re = re.compile(r"^점수:\s*(\d{1,2})/20\s*$", re.MULTILINE)
             scores = [int(x) for x in score_re.findall(s)]
             if len(scores) < 5:
-              return False, f"Expected 5 SCORE lines, found {len(scores)}"
+              return False, f"Expected 5 점수 lines, found {len(scores)}"
             scores = scores[:5]
             if any(x < 0 or x > 20 for x in scores):
               return False, "Score out of range"
 
-            m_total = re.search(r"^TOTAL:\s*(\d{1,3})/100\s*$", s, re.MULTILINE)
+            m_total = re.search(r"^- 총점:\s*(\d{1,3})/100\s*$", s, re.MULTILINE)
             if not m_total:
-              return False, "Missing TOTAL line"
+              return False, "Missing 총점 line"
             total = int(m_total.group(1))
             if total != sum(scores):
-              return False, f"TOTAL mismatch (got {total}, expected {sum(scores)})"
+              return False, f"총점 mismatch (got {total}, expected {sum(scores)})"
 
-            m_verdict = re.search(r"^VERDICT:\s*(PASS|FAIL)\s*\(([^)]+)\)\s*$", s, re.MULTILINE)
+            m_verdict = re.search(r"^- 판정:\s*(합격|불합격)\s*\(([^)]+)\)\s*$", s, re.MULTILINE)
             if not m_verdict:
-              return False, "Missing VERDICT line"
+              return False, "Missing 판정 line"
             verdict = m_verdict.group(1)
             marker = m_verdict.group(2).strip()
-            expected = "PASS" if total >= 80 else "FAIL"
+            expected = "합격" if total >= 80 else "불합격"
             if verdict != expected:
-              return False, f"VERDICT mismatch (got {verdict}, expected {expected})"
-            expected_marker = "🟢 O" if expected == "PASS" else "🔴 X"
+              return False, f"판정 mismatch (got {verdict}, expected {expected})"
+            expected_marker = "🟢 O" if expected == "합격" else "🔴 X"
             if marker != expected_marker:
-              return False, f"VERDICT marker mismatch (got {marker}, expected {expected_marker})"
+              return False, f"판정 marker mismatch (got {marker}, expected {expected_marker})"
+
+            if not re.search(r"^- 총평:\s*.+$", s, re.MULTILINE):
+              return False, "Missing 총평 line"
+
+            section_names = ["1. 보안", "2. 코드 품질", "3. UI/UX 및 접근성", "4. 정확성", "5. 성능"]
+            for section in section_names:
+              m_section = re.search(
+                rf"## {re.escape(section)}\n(?P<body>.*?)(?=\n## |\Z)",
+                s,
+                re.DOTALL,
+              )
+              if not m_section:
+                return False, f"Missing section body: {section}"
+              body = m_section.group("body")
+              for required_h3 in ["### 점수", "### 문제", "### 해결 방법", "### 예시"]:
+                if required_h3 not in body:
+                  return False, f"Missing {required_h3} in {section}"
+
+              try:
+                issues_part = body.split("### 문제\n", 1)[1].split("\n### 해결 방법", 1)[0]
+              except Exception:
+                return False, f"Cannot parse 문제 block in {section}"
+
+              issue_lines = [ln.strip() for ln in issues_part.splitlines() if ln.strip().startswith("- ")]
+              if not issue_lines:
+                return False, f"문제 bullet missing in {section}"
+              if issue_lines == ["- 없음"]:
+                pass
+              else:
+                if any(ln == "- 없음" for ln in issue_lines):
+                  return False, f"문제 block mixes '없음' with other issues in {section}"
+                if len(issue_lines) > 3:
+                  return False, f"문제 bullet count exceeds 3 in {section}"
 
             return True, ""
 

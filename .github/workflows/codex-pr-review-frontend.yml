@@ -103,6 +103,58 @@ jobs:
             out.write(f"file_count={len(files)}\n")
           PY
 
+
+      - name: Fetch previous review comments
+        id: previous_reviews
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_FULL: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          owner="${{ github.repository_owner }}"
+          repo="$(echo "${{ github.repository }}" | cut -d/ -f2)"
+          pr="${{ github.event.pull_request.number }}"
+
+          curl -sS -L \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${owner}/${repo}/issues/${pr}/comments?per_page=100" \
+            > pr_comments.json
+
+          python - <<'PY'
+          import json
+          import os
+
+          max_bytes = 12000
+
+          with open("pr_comments.json", "r", encoding="utf-8") as f:
+            comments = json.load(f)
+
+          reviews = []
+          for c in comments:
+            user = c.get("user", {}).get("login", "")
+            body = c.get("body", "")
+            created = c.get("created_at", "")
+            if "## 요약" in body and ("[bot]" in user or "bot" in user.lower()):
+              reviews.append({"created_at": created, "body": body})
+
+          with open("previous_reviews.md", "w", encoding="utf-8") as out:
+            if not reviews:
+              out.write("이전 AI 리뷰 코멘트: 없음\n")
+            else:
+              out.write(f"이전 AI 리뷰 코멘트: {len(reviews)}건\n\n")
+              total_bytes = 0
+              for i, r in enumerate(reviews, 1):
+                entry = f"--- 이전 리뷰 #{i} ({r['created_at']}) ---\n{r['body']}\n\n"
+                entry_bytes = len(entry.encode('utf-8'))
+                if total_bytes + entry_bytes > max_bytes:
+                  out.write(f"...[이전 리뷰 {len(reviews) - i + 1}건 생략 (크기 제한)]\n")
+                  break
+                out.write(entry)
+                total_bytes += entry_bytes
+          PY
+
       - name: Build Codex prompt and schema
         id: prompt
         env:
@@ -162,6 +214,14 @@ jobs:
           - 우선 `git diff --name-only HEAD^1..HEAD`로 변경 파일 목록을 확인한다.
           - 필요한 파일에 한해 `git diff HEAD^1..HEAD -- <path>`와 파일 내용을 조회한다.
           - 아래 요약된 파일 목록과 직접 조회 결과가 다르면 직접 조회 결과를 우선한다.
+
+
+          ## 이전 리뷰 참고 (필수)
+          - 이 PR에 대해 이전에 작성된 AI 리뷰 코멘트가 아래에 포함될 수 있다.
+          - 이전 리뷰에서 지적된 문제가 현재 변경사항에서 해결되었는지 반드시 확인한다.
+          - 해결된 문제는 해당 카테고리에서 긍정적으로 언급한다.
+          - 여전히 해결되지 않은 문제는 다시 지적하되, "이전 리뷰에서도 지적됨"을 명시한다.
+          - 이전 리뷰가 없으면 이 섹션을 무시한다.
 
           ---
 
@@ -365,6 +425,12 @@ jobs:
             echo "- Review ONLY PR-introduced changes by inspecting local git/file context."
             echo "- Do not assume unchanged files are modified."
           } >> codex_prompt.md
+
+          {
+            echo ""
+            echo "Previous AI review comments:"
+          } >> codex_prompt.md
+          cat previous_reviews.md >> codex_prompt.md
 
       - name: Run Codex with selected model
         id: codex_model

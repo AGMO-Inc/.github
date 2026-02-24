@@ -41,3 +41,27 @@ body:
         - 링크/스크린샷/로그 등
     validations:
       required: false
+
+  - type: textarea
+    id: detailed_acceptance_criteria
+    attributes:
+      label: 4. 상세 수용 기준 (선택)
+      description: 필요한 경우 Given/When/Then 형식으로 작성하세요.
+      placeholder: |
+        - Given ...
+        - When ...
+        - Then ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: verification_logs
+    attributes:
+      label: 5. 검증 로그/링크 (선택)
+      description: 테스트 결과, 스크린샷, 로그 링크를 정리하세요.
+      placeholder: |
+        - 테스트 결과:
+        - 스크린샷:
+        - 로그 링크:
+    validations:
+      required: false

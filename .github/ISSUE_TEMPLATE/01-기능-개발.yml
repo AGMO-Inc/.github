@@ -29,7 +29,7 @@ body:
     id: requirements
     attributes:
       label: "3. 요구 사항"
-      description: "만족해야 하는 조건을 체크박스로 정리"
+      description: "만족해야 하는 조건을 체크박스로 정리하세요. 필수 요구는 (필수), 추가 요구는 (선택) 태그로 구분합니다."
       placeholder: |
         - [ ] (필수) 관리자는 디바이스 소유권을 변경할 수 있어야 한다.
         - [ ] (필수) 관리자는 디바이스의 소유자를 알 수 있어야 한다.
@@ -62,5 +62,69 @@ body:
         - 관련 이슈/PR:
         - 레퍼런스 문서/스펙:
         - 스크린샷/로그:
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: "6. 수용 기준 (선택)"
+      description: "필요한 경우 Given/When/Then 형식과 AC 식별자(예: AC-01)로 작성"
+      placeholder: |
+        - [ ] AC-01: Given ... When ... Then ...
+        - [ ] AC-02: Given 요청 생성, When 처리 시작, Then 상태가 `REQUESTED`로 기록된다.
+        - [ ] AC-03: Given 실패 조건, When 타임아웃/검증 실패, Then `reasonCode`/`reasonMessage`를 조회할 수 있다.
+    validations:
+      required: false
+
+  - type: textarea
+    id: status_model
+    attributes:
+      label: "7. 상태 모델 (선택)"
+      description: "비동기 처리나 진행 상태 관리가 필요할 때 작성 (상태/전이/실패/재시도 포함)"
+      placeholder: |
+        - REQUESTED -> COMMAND_SENT -> DOWNLOADING -> INSTALLING -> REBOOTING -> SUCCEEDED
+        - 실패 전이: FAILED_VALIDATION | FAILED_DELIVERY | FAILED_DOWNLOAD | FAILED_INSTALL | FAILED_HEALTHCHECK | FAILED_TIMEOUT
+        - 정책상 재시도 시: FAILED_* -> REQUESTED
+        - 운영 상태: CANCELLED | ROLLED_BACK
+    validations:
+      required: false
+
+  - type: textarea
+    id: api_protocol
+    attributes:
+      label: "8. API/프로토콜 (선택)"
+      description: "외부/내부 연동 계약이 필요할 때 작성"
+      placeholder: |
+        - User API: GET /api/v1/... , POST /api/v1/...
+        - Admin API: POST /api/v1/admin/... (생성/중단/재개)
+        - Async channel: MQTT topic or webhook/event
+        - report payload: jobId, status, progress, reasonCode, reasonMessage, reportedAt
+    validations:
+      required: false
+
+  - type: textarea
+    id: data_model
+    attributes:
+      label: "9. 데이터 모델 (선택)"
+      description: "DB/스키마 영향이 있을 때 작성"
+      placeholder: |
+        - main entity/table: feature_job(job_id, status, attempt, requested_at, updated_at)
+        - history table: feature_job_history(job_id, from_status, to_status, reason_code, reason_message, changed_at)
+        - related artifact/config: version, target, checksum
+        - index/constraint/migration note:
+    validations:
+      required: false
+
+  - type: textarea
+    id: non_functional_requirements
+    attributes:
+      label: "10. 비기능 요구사항 (선택)"
+      description: "성능/안정성/운영 요구가 중요할 때 작성"
+      placeholder: |
+        - latency: 상태 변경 이벤트 처리 P95 < 5s
+        - api performance: 상태 조회 API P95 < 300ms
+        - reliability: 성공률/실패율 메트릭 수집 가능
+        - alarm: 실패율 임계치/타임아웃/DLQ 알람 발송
     validations:
       required: false
